@@ -73,9 +73,12 @@ def apply_mask(image, mask, color, alpha=0.5):
     """Apply the given mask to the image.
     """
     for c in range(3):
+#        image[:, :, c] = np.where(mask == 1,
+#                                  image[:, :, c] *
+#                                  (1 - alpha) + alpha * color[c] * 255,
+#                                  image[:, :, c])
         image[:, :, c] = np.where(mask == 1,
-                                  image[:, :, c] *
-                                  (1 - alpha) + alpha * color[c] * 255,
+                                  image[:, :, c],
                                   image[255, 255, c])
     return image
 
@@ -121,7 +124,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,
     ax.set_title(title)
 
     masked_image = image.astype(np.uint32).copy()
-    for i in range(N):
+    for i in range(1):
         color = colors[i]
 
         # Bounding box

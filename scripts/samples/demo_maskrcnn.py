@@ -8,7 +8,7 @@ import os
 import sys
 import random
 import math
-#import skimage.io
+import skimage.io
 import time
 #import utils
 from std_msgs.msg import String
@@ -28,10 +28,14 @@ def apply_mask(image, mask, color, alpha=0.5):
     """Apply the given mask to the image.
     """
     for n, c in enumerate(color):
+ #       image[:, :, n] = np.where(
+ #           mask == 1,
+ #           image[:, :, n] *(1 - alpha) + alpha * c,
+ #           image[:, :, n]
         image[:, :, n] = np.where(
             mask == 1,
-            image[:, :, n] *(1 - alpha) + alpha * c,
-            image[:, :, n]
+            image[:, :, n],
+            image[0, 0, n]
         )
     return image
  
@@ -48,17 +52,17 @@ def display_instances(image,boxes,masks,ids,names,scores):
     for i,color in enumerate(colors):
         if not np.any(boxes[i]):
             continue
-        
-        y1,x1,y2,x2=boxes[i]
-        mask=masks[:,:,i]
-        image=apply_mask(image,mask,color)
-        image=cv2.rectangle(image,(x1,y1),(x2,y2),color,2)
-        
         label=names[ids[i]]
-        score=scores[i] if scores is not None else None
+        if label == 'keyboard':
+            y1,x1,y2,x2=boxes[i]
+            mask=masks[:,:,i]
+            image=apply_mask(image,mask,color)
+            image=cv2.rectangle(image,(x1,y1),(x2,y2),color,2)
         
-        caption='{}{:.2f}'.format(label,score) if score else label
-        image=cv2.putText(
+            score=scores[i] if scores is not None else None
+        
+            caption='{}{:.2f}'.format(label,score) if score else label
+            image=cv2.putText(
             image,caption,(x1,y1),cv2.FONT_HERSHEY_COMPLEX,0.7,color,2
         )
         
@@ -70,13 +74,13 @@ if __name__=='__main__':
     import sys
     import random
     import math
-    import skimage.io
+
     import time
     import utils
     #import model as modellib
     
     
-    ROOT_DIR = os.path.abspath("../")
+    ROOT_DIR = os.path.abspath("")
     sys.path.append(ROOT_DIR)
  
     sys.path.append(os.path.join(ROOT_DIR, "samples/coco/"))  # To find local version
@@ -88,7 +92,7 @@ if __name__=='__main__':
         print('cannot find coco_model')
         utils.download_trained_weights(COCO_MODEL_PATH)
 
-    IMAGE_DIR = os.path.join(ROOT_DIR, "images")
+    IMAGE_DIR = os.path.join(ROOT_DIR, "images2")
 
     class InferenceConfig(coco.CocoConfig):
         GPU_COUNT = 1
@@ -102,7 +106,7 @@ if __name__=='__main__':
         )
     print("rcnn network ready")
  
-        # Load weights trained on MS-COCO
+    # Load weights trained on MS-COCO
     model.load_weights(COCO_MODEL_PATH, by_name=True)
     print("rcnn weights load ready")
     class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
@@ -121,23 +125,27 @@ if __name__=='__main__':
                'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
                'teddy bear', 'hair drier', 'toothbrush']
     file_names = next(os.walk(IMAGE_DIR))[2]
-    image = skimage.io.imread(os.path.join(IMAGE_DIR, random.choice(file_names)))
+    while True:
+        for i in range(len(file_names)):
+            image = skimage.io.imread(os.path.join(IMAGE_DIR, file_names[i]))
     #capture=cv2.VideoCapture(0)
     #capture.set(cv2.CAP_PROP_FRAME_WIDTH,1920)
     #capture.set(cv2.CAP_PROP_FRAME_HEIGHT,1080)
     
        # ret,frame=capture.read()
-    results=model.detect([image],verbose=0)
-    r=results[0]
+            results=model.detect([image],verbose=0)
+            r=results[0]
         
         
-    image=display_instances(
+            image=display_instances(
               image,r['rois'], r['masks'], r['class_ids'], 
                             class_names, r['scores']
-        )
-        
-    cv2.imshow('frame',image)
-
+            )
+            saveImageName = './maskimage'+ i;
+            cv2.imshow('image', image)
+            cv2.waitKey(1000)
+            cv2.imwrite(saveImageName,image)
+            cv2.destroyAllWindows()
        
   #  capture.release()
-    cv2.destroyAllWindows()
+
