@@ -81,9 +81,8 @@ def display_instances(image,boxes,masks,ids,names,scores):
 class image_converter:
  
     def __init__(self):
-        self.image_sub = rospy.Subscriber("/RGB_image",Image,self.callback,queue_size=1)
-        self.image_pub = rospy.Publisher("/maskrcnn_image",Image,queue_size=1)
-        ROOT_DIR = os.path.abspath("") # this path is not the .py path, its the command terminal path!
+   #     ROOT_DIR = os.path.abspath("") # this path is not the .py path, its the command terminal path!
+        ROOT_DIR = os.path.abspath("/media/tx2/Drive/wuzida/catkin_ws/src/maskRCNN/scripts/samples") # this path is not the .py path, its the command terminal path! 
         sys.path.append(ROOT_DIR)
  
         sys.path.append(os.path.join(ROOT_DIR, "samples/coco/"))  # To find local version
@@ -100,19 +99,20 @@ class image_converter:
         class InferenceConfig(coco.CocoConfig):
             GPU_COUNT = 1
             IMAGES_PER_GPU = 1
+            IMAGE_MIN_DIM = IMAGE_MAX_DIM = 512
  
         config = InferenceConfig()
         config.display()
     
-        model = modellib.MaskRCNN(
+        self.model = modellib.MaskRCNN(
             mode="inference", model_dir=MODEL_DIR, config=config
         )
         print("rcnn network ready")
  
         # Load weights trained on MS-COCO
-        model.load_weights(COCO_MODEL_PATH, by_name=True)
+        self.model.load_weights(COCO_MODEL_PATH, by_name=True)
         print("rcnn weights load ready")
-        class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
+        self.class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'bus', 'train', 'truck', 'boat', 'traffic light',
                'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
                'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
@@ -127,63 +127,76 @@ class image_converter:
                'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
                'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
                'teddy bear', 'hair drier', 'toothbrush']
-        bridge = CvBridge()
-        file_names = os.listdir(IMAGE_DIR)
+   #     bridge = CvBridge()
+   #     file_names = os.listdir(IMAGE_DIR)
 
-        rate = rospy.Rate(5)
-        while not rospy.is_shutdown():
+   #     rate = rospy.Rate(5)
+   #     while not rospy.is_shutdown():
     
-            for i in range(len(file_names)):
-                start = time.time()
-                cv_image = skimage.io.imread(os.path.join(IMAGE_DIR, file_names[i]))
+   #         for i in range(len(file_names)):
+   #             start = time.time()
+   #             cv_image = skimage.io.imread(os.path.join(IMAGE_DIR, file_names[i]))
 
-                results=model.detect([cv_image],verbose=1)
-                r=results[0]
+   #             results=model.detect([cv_image],verbose=1)
+   #             r=results[0]
 
-                cv_image=display_instances(
-                    cv_image,r['rois'], r['masks'], r['class_ids'], class_names, r['scores']
-                )
-                msg = bridge.cv2_to_imgmsg(cv_image,encoding = "bgr8")
-                elapsed =(time.time() - start)
-                print ("TIME USED ", elapsed)
-                self.image_pub.publish(msg)
-                rate.sleep()
-
+    #            cv_image=display_instances(
+  #                 cv_image,r['rois'], r['masks'], r['class_ids'], class_names, r['scores']
+  #              )
+ #               msg = bridge.cv2_to_imgmsg(cv_image,encoding = "bgr8")
+  #              elapsed =(time.time() - start)
+  #              print ("TIME USED ", elapsed)
+   #             self.image_pub.publish(msg)
+ #               rate.sleep()
+        self.image_sub = rospy.Subscriber("/RGB_image",Image,self.callback,queue_size=1,buff_size=52428800)
+        self.image_pub = rospy.Publisher("/maskrcnn_image",Image,queue_size=1)
+        self.bridge =CvBridge()
+        self.imageDone = True
+        self.model.keras_model._make_predict_function()
     def callback(self,ros_data):
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(ros_data, "bgr8")
+
+       # (rows,cols,channels) = cv_image.shape
+       # cv2.imshow("Image window", cv_image)
+        if self.imageDone == True:
+            self.imageDone = False
+            start = time.time()
+            try:
+                cv_image = self.bridge.imgmsg_to_cv2(ros_data, "bgr8")
           #  np_arr = np.fromstring(ros_data.data, np.uint8)
           #  cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        except CvBridgeError as e:
-            print(e)
- 
-        (rows,cols,channels) = cv_image.shape
+            except CvBridgeError as e:
+                print(e)
 
-        cv2.imshow("Image window", cv_image)
+  
+            results=self.model.detect([cv_image],verbose=1)
+            r=results[0]
 
-       # results=model.detect([cv_image],verbose=1)
-       # r=results[0]
+            cv_image=display_instances(
+                cv_image,r['rois'], r['masks'], r['class_ids'], self.class_names, r['scores']
+            )
 
-       # cv_image=display_instances(
-       #     cv_image,r['rois'], r['masks'], r['class_ids'], class_names, r['scores']
-       # )
-        
-        cv2.imshow('frame',cv_image)
-
+        #cv2.imshow('frame',cv_image)        
 #        msg = CompressedImage()
 #        msg.header.stamp = rospy.Time.now()
 #        msg.format = "jpeg"
 #        msg.data = np.array(cv2.imencode('.jpg', cv_image)[1]).tostring()
         # Publish new image
+            try:
+                msg = self.bridge.cv2_to_imgmsg(cv_image,encoding = "bgr8")
+                elapsed =(time.time() - start)
+                print ("TIME USED ", elapsed)
+                self.image_pub.publish(msg)
 #        self.image_pub.publish(msg)
  #           self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
- #       except CvBridgeError as e:
- #           print(e)
+            except CvBridgeError as e:
+               print(e)
+            self.imageDone = True
+          
 
 
 def main(args): 
     rospy.init_node('image_converter', anonymous=True)
-    ic = image_converter()
+    image_converter()
     try:
         rospy.spin()
     except KeyboardInterrupt:

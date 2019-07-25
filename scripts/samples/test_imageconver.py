@@ -24,23 +24,34 @@ class image_converter:
     def __init__(self):
 
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("/RGB_image",Image,self.callback)
-        cv2.waitKey(1000000)
+        self.image_sub = rospy.Subscriber("/RGB_image",Image,self.callback,queue_size=1,buff_size=52428800)
+        self.image_pub = rospy.Publisher("/maskrcnn_image",Image,queue_size=1)
+        self.imageDone = True
+     #   cv2.waitKey(1000000)
     def callback(self, data):
-        currentframe = 0
-        try:
-            while True:
-
+        start = time.time()
+        if self.imageDone == True:
+            self.imageDone = False
+            try:
+  #          while True:
                 cv_image = self.bridge.imgmsg_to_cv2(data, 'bgr8')
-
-
-        except CvBridgeError as e:  
-            print(e)
+            except CvBridgeError as e:  
+                print(e)
+            cv2.waitKey(5000)
+            try:
+                msg = self.bridge.cv2_to_imgmsg(cv_image,encoding = "bgr8")
+                self.image_pub.publish(msg)
+            except CvBridgeError as e:  
+                print(e)        
+            self.imageDone = True
+        elapsed =(time.time() - start)
+        print ("TIME USED ", elapsed)
 def main(args):
-    ic = image_converter()
     rospy.init_node('image_converter', anonymous=True)
+    ic = image_converter()
+
     try:
-        cv2.waitKey(1000)
+
         rospy.spin()
     except KeyboardInterrupt:
         print('Shutting Down')
