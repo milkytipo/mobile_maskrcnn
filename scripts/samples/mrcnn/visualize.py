@@ -79,7 +79,7 @@ def apply_mask(image, mask, color, alpha=0.5):
 #                                  image[:, :, c])
         image[:, :, c] = np.where(mask == 1,
                                   image[:, :, c],
-                                  image[255, 255, c])
+                                  [255, 255, 255])
     return image
 
 

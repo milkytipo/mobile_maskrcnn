@@ -19,23 +19,31 @@ from mrcnn import utils
 import mrcnn.model as modellib
 from coco import coco
 
+
 def random_colors(N):
     np.random.seed(1)
     colors=[tuple(255*np.random.rand(3)) for _ in range(N)]
     return colors
  
-def apply_mask(image, mask, color, alpha=0.5):
+def apply_mask(image,mask_image, mask, color, alpha=0.5):
     """Apply the given mask to the image.
     """
-    for n, c in enumerate(color):
+    for n in range(3):
         image[:, :, n] = np.where(
             mask == 1,
             image[:, :, n],
             image[0, 0, n]
-        )
-    return image
+            )
+
+    mask_image[:, :] = np.where(
+            mask[:,:] == 1,
+            mask_image[:, :],
+            255
+            )
+
+    return image,mask_image
  
-def display_instances(image,boxes,masks,ids,names,scores):
+def display_instances(image,roi_image,mask_image,boxes,masks,ids,names,scores):
     n_instances=boxes.shape[0]
     if not n_instances:
         print('No instances to display')
@@ -65,17 +73,18 @@ def display_instances(image,boxes,masks,ids,names,scores):
         if label == 'keyboard':
             y1,x1,y2,x2=boxes[i]
             mask=masks[:,:,i]
-            image=apply_mask(image,mask,color)
+            image,mask_image=apply_mask(image,mask_image,mask,color)
             image=cv2.rectangle(image,(x1,y1),(x2,y2),color,2)
-        
+            roi_image=cv2.rectangle(roi_image,(x1,y1),(x2,y2),color,2)
+
             score=scores[i] if scores is not None else None
         
             caption='{}{:.2f}'.format(label,score) if score else label
             image=cv2.putText(
             image,caption,(x1,y1),cv2.FONT_HERSHEY_COMPLEX,0.7,color,2
-        )
+            )
         
-    return image
+    return roi_image,mask_image,image
 
 
 class image_converter:
@@ -150,11 +159,15 @@ class image_converter:
  #               rate.sleep()
         self.image_sub = rospy.Subscriber("/RGB_image",Image,self.callback,queue_size=1,buff_size=52428800)
         self.image_pub = rospy.Publisher("/maskrcnn_image",Image,queue_size=1)
+        self.mask_pub = rospy.Publisher("/mask_image",Image,queue_size=1)
+        self.roi_pub = rospy.Publisher("/roi_image",Image,queue_size=1)
         self.bridge =CvBridge()
         self.imageDone = True
         self.model.keras_model._make_predict_function()
     def callback(self,ros_data):
-
+       # read image from usb camera
+       # cap = cv2.VideoCapture(1)
+       # ret, frame = cap.read()
        # (rows,cols,channels) = cv_image.shape
        # cv2.imshow("Image window", cv_image)
         if self.imageDone == True:
@@ -166,26 +179,32 @@ class image_converter:
           #  cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             except CvBridgeError as e:
                 print(e)
-
-  
             results=self.model.detect([cv_image],verbose=1)
             r=results[0]
-
-            cv_image=display_instances(
-                cv_image,r['rois'], r['masks'], r['class_ids'], self.class_names, r['scores']
+            width = cv_image.shape[0]
+            height = cv_image.shape[1]
+            mask_image = np.zeros((width,height),np.uint8)
+            roi_image = np.zeros((width,height),np.uint8)
+            roi_image,mask_image,cv_image=display_instances(
+                cv_image,roi_image,mask_image,r['rois'], r['masks'], r['class_ids'], self.class_names, r['scores']
             )
-
+         #   print(mask_image)
+        #    print(roi_image)
         #cv2.imshow('frame',cv_image)        
 #        msg = CompressedImage()
 #        msg.header.stamp = rospy.Time.now()
 #        msg.format = "jpeg"
 #        msg.data = np.array(cv2.imencode('.jpg', cv_image)[1]).tostring()
-        # Publish new image
+        # Publish mask      
             try:
                 msg = self.bridge.cv2_to_imgmsg(cv_image,encoding = "bgr8")
+                msg2 = self.bridge.cv2_to_imgmsg(mask_image,encoding = "mono8")
+                msg3 = self.bridge.cv2_to_imgmsg(roi_image,encoding = "mono8")
                 elapsed =(time.time() - start)
                 print ("TIME USED ", elapsed)
                 self.image_pub.publish(msg)
+                self.mask_pub.publish(msg2)
+                self.roi_pub.publish(msg3)
 #        self.image_pub.publish(msg)
  #           self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
             except CvBridgeError as e:
@@ -203,4 +222,4 @@ def main(args):
         print("Shutting down")
     cv2.destroyAllWindows()
 if __name__ == '__main__':
-    main(sys.argv)
+    main(sys.argv)[255]
