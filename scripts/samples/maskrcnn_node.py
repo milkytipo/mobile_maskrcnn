@@ -28,17 +28,17 @@ def random_colors(N):
 def apply_mask(image,mask_image, mask, color, alpha=0.5):
     """Apply the given mask to the image.
     """
-    for n in range(3):
-        image[:, :, n] = np.where(
-            mask == 1,
-            image[:, :, n],
-            image[0, 0, n]
-            )
+   # for n in range(3):
+   #     image[:, :, n] = np.where(
+  #          mask == 1,
+   #         image[:, :, n],
+    #        image[0, 0, n]
+    #        )
 
     mask_image[:, :] = np.where(
             mask[:,:] == 1,
             mask_image[:, :],
-            255
+            0
             )
 
     return image,mask_image
@@ -70,7 +70,7 @@ def display_instances(image,roi_image,mask_image,boxes,masks,ids,names,scores):
   #          image,caption,(x1,y1),cv2.FONT_HERSHEY_COMPLEX,0.7,color,2
 #        )
         label=names[ids[i]]
-        if label == 'keyboard':
+        if label == 'book':
             y1,x1,y2,x2=boxes[i]
             mask=masks[:,:,i]
             image,mask_image=apply_mask(image,mask_image,mask,color)
@@ -158,12 +158,13 @@ class image_converter:
    #             self.image_pub.publish(msg)
  #               rate.sleep()
         self.image_sub = rospy.Subscriber("/RGB_image",Image,self.callback,queue_size=1,buff_size=52428800)
-        self.image_pub = rospy.Publisher("/maskrcnn_image",Image,queue_size=1)
+  #      self.image_pub = rospy.Publisher("/maskrcnn_image",Image,queue_size=1)
         self.mask_pub = rospy.Publisher("/mask_image",Image,queue_size=1)
         self.roi_pub = rospy.Publisher("/roi_image",Image,queue_size=1)
         self.bridge =CvBridge()
         self.imageDone = True
         self.model.keras_model._make_predict_function()
+        #self.rate = rospy.Rate(30)
     def callback(self,ros_data):
        # read image from usb camera
        # cap = cv2.VideoCapture(1)
@@ -183,8 +184,10 @@ class image_converter:
             r=results[0]
             width = cv_image.shape[0]
             height = cv_image.shape[1]
-            mask_image = np.zeros((width,height),np.uint8)
-            roi_image = np.zeros((width,height),np.uint8)
+            mask_image = np.ones((width,height),np.uint8)
+            mask_image = mask_image *255;
+            roi_image = np.ones((width,height),np.uint8)
+            roi_image = roi_image *255;
             roi_image,mask_image,cv_image=display_instances(
                 cv_image,roi_image,mask_image,r['rois'], r['masks'], r['class_ids'], self.class_names, r['scores']
             )
@@ -202,13 +205,13 @@ class image_converter:
                 msg3 = self.bridge.cv2_to_imgmsg(roi_image,encoding = "mono8")
                 elapsed =(time.time() - start)
                 print ("TIME USED ", elapsed)
-                self.image_pub.publish(msg)
+ #               self.image_pub.publish(msg)
                 self.mask_pub.publish(msg2)
                 self.roi_pub.publish(msg3)
 #        self.image_pub.publish(msg)
  #           self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
             except CvBridgeError as e:
-               print(e)
+                print(e)
             self.imageDone = True
           
 
