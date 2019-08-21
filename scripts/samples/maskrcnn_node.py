@@ -108,7 +108,7 @@ class image_converter:
         class InferenceConfig(coco.CocoConfig):
             GPU_COUNT = 1
             IMAGES_PER_GPU = 1
-          #  IMAGE_MIN_DIM = IMAGE_MAX_DIM = 512
+            IMAGE_MIN_DIM = IMAGE_MAX_DIM = 512
  
         config = InferenceConfig()
         config.display()
